@@ -30,15 +30,75 @@ class FileTransfer:
         Returns:
             True if directory exists or was created successfully
         """
+        # Check if mount point is writable
+        if not self._is_mount_writable():
+            print(f"Device mount point is read-only: {self.device_mount_point}")
+            print("  Try unmounting and remounting with write permissions, or check device settings")
+            return False
+        
+        # Check if we have write permissions
+        if not os.access(self.device_mount_point, os.W_OK):
+            print(f"No write permission on device mount point: {self.device_mount_point}")
+            print("  You may need to run with sudo, or check filesystem permissions")
+            return False
+        
         try:
+            if os.path.exists(self.device_music_path):
+                if not os.access(self.device_music_path, os.W_OK):
+                    print(f"No write permission on music directory: {self.device_music_path}")
+                    return False
+                return True
+            
             os.makedirs(self.device_music_path, exist_ok=True)
+            print(f"Created music directory: {self.device_music_path}")
             return True
         except PermissionError:
             print(f"Permission denied creating directory: {self.device_music_path}")
+            print(f"  Mount point: {self.device_mount_point}")
+            print("  You may need to run with sudo, or check device/filesystem permissions")
             return False
         except Exception as e:
             print(f"Error creating music directory: {e}")
             return False
+    
+    def _is_mount_writable(self) -> bool:
+        """Check if the mount point is writable (not read-only)."""
+        try:
+            # Check mount options from /proc/mounts
+            with open('/proc/mounts', 'r') as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        device = parts[0]
+                        mountpoint = parts[1]
+                        options = parts[3]
+                        
+                        # Normalize mountpoint (handle spaces/encoding)
+                        normalized_mountpoint = mountpoint.replace('\\040', ' ').replace('\\x20', ' ')
+                        normalized_our_mount = self.device_mount_point.replace('\\040', ' ').replace('\\x20', ' ')
+                        
+                        if normalized_mountpoint == normalized_our_mount or mountpoint == self.device_mount_point:
+                            # Check if 'ro' (read-only) is in the options
+                            if 'ro' in options.split(','):
+                                return False
+                            return True  # If not explicitly ro, assume writable
+        except Exception as e:
+            print(f"Warning: Could not check mount options: {e}")
+            # Assume writable if we can't check
+            return True
+        
+        # If not found in /proc/mounts, try to write a test file
+        try:
+            test_file = os.path.join(self.device_mount_point, '.syncnswim_write_test')
+            try:
+                with open(test_file, 'w') as f:
+                    f.write('test')
+                os.remove(test_file)
+                return True
+            except (PermissionError, OSError):
+                return False
+        except Exception:
+            return True  # Assume writable if test fails for other reasons
     
     def get_device_free_space(self) -> Optional[int]:
         """

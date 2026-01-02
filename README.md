@@ -230,12 +230,14 @@ The app comes pre-configured with "This Week in Tech" (TWiT):
 - Check available disk space (both local and device)
 - Ensure download directory is writable
 
-**Transfer fails:**
+**Transfer fails / Permission denied:**
 
-- Verify storage device is mounted and writable
-- Check available space on device: files will show device free space
-- Ensure you have permission to write to the device mount point
-- Try manually copying a file to the device to verify it's working
+- Check if device is mounted read-only: `mount | grep SWIM` (look for 'ro' in output)
+- Verify you have write permissions: Try manually creating a file: `touch /media/raspberry/SWIM\ PRO/test.txt`
+- If mounted read-only, you may need to remount with write permissions (check device settings first)
+- Ensure the user running the script has permission to write to the mount point
+- Some devices require being mounted with specific options - check device documentation
+- If using systemd service, ensure the service user has write permissions to the mount point
 
 ## License
 
