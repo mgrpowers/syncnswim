@@ -19,9 +19,12 @@ class FileTransfer:
             device_mount_point: Mount point of the Shokz device
             music_directory: Directory on device where music should be stored
         """
-        self.device_mount_point = device_mount_point
+        # Normalize the mount point path (handle encoding from /proc/mounts)
+        # /proc/mounts uses \040 or \x20 for spaces, convert to actual space
+        normalized = device_mount_point.replace('\\x20', ' ').replace('\\040', ' ')
+        self.device_mount_point = normalized
         self.music_directory = music_directory
-        self.device_music_path = os.path.join(device_mount_point, music_directory)
+        self.device_music_path = os.path.join(self.device_mount_point, music_directory)
     
     def ensure_music_directory(self) -> bool:
         """

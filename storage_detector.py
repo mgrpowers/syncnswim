@@ -138,18 +138,20 @@ class StorageDetector:
                         if '/dev/sd' in device or '/dev/mmcblk' in device:
                             # Check if mountpoint is in typical removable storage locations
                             if '/media' in mountpoint or '/mnt' in mountpoint or '/run/media' in mountpoint:
-                                removable_mounts.append({'device': device, 'mountpoint': mountpoint})
+                                # Normalize mountpoint (handle encoding from /proc/mounts)
+                                normalized_mountpoint = mountpoint.replace('\\040', ' ').replace('\\x20', ' ')
+                                removable_mounts.append({'device': device, 'mountpoint': normalized_mountpoint})
                                 # Check label
                                 label = self._get_device_label(device)
                                 if label and self.device_name.lower() in label.lower():
-                                    print(f"[Storage Detection] ✓ Found device via /proc/mounts label match: {mountpoint} (label: {label})")
-                                    return mountpoint
+                                    print(f"[Storage Detection] ✓ Found device via /proc/mounts label match: {normalized_mountpoint} (label: {label})")
+                                    return normalized_mountpoint
                                 
                                 # Check mountpoint name
-                                if self.device_name.lower() in mountpoint.lower():
+                                if self.device_name.lower() in normalized_mountpoint.lower():
                                     label_str = label if label else 'none'
-                                    print(f"[Storage Detection] ✓ Found device via /proc/mounts mountpoint match: {mountpoint} (label: {label_str})")
-                                    return mountpoint
+                                    print(f"[Storage Detection] ✓ Found device via /proc/mounts mountpoint match: {normalized_mountpoint} (label: {label_str})")
+                                    return normalized_mountpoint
             
             if removable_mounts:
                 print(f"[Storage Detection] Found {len(removable_mounts)} removable mount(s) in /proc/mounts, but none match '{self.device_name}':")
