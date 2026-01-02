@@ -72,9 +72,11 @@ class StorageDetector:
             Mount point path or None if not found
         """
         # Try multiple methods to find the device (disk drives)
+        print(f"[Storage Detection] Looking for device matching: '{self.device_name}'")
         
         # Method 1: Use lsblk to find all mounted disk drives (most reliable)
         try:
+            print("[Storage Detection] Method 1: Checking lsblk for mounted disk drives...")
             result = subprocess.run(
                 ['lsblk', '-o', 'NAME,LABEL,MOUNTPOINT,FSTYPE', '-n', '-r'],
                 capture_output=True,
@@ -84,6 +86,7 @@ class StorageDetector:
             
             if result.returncode == 0:
                 lines = result.stdout.strip().split('\n')
+                mounted_drives = []
                 for line in lines:
                     parts = line.split()
                     if len(parts) >= 2:
@@ -94,18 +97,31 @@ class StorageDetector:
                         
                         # Check if it's a mounted disk drive (sd* or mmcblk*)
                         if mountpoint and (name.startswith('sd') or name.startswith('mmcblk')):
+                            mounted_drives.append({'name': name, 'label': label, 'mountpoint': mountpoint})
+                            
                             # Check label first (most specific)
                             if label and self.device_name.lower() in label.lower():
+                                print(f"[Storage Detection] ✓ Found device via label match: {mountpoint} (label: {label})")
                                 return mountpoint
                             
                             # Check mountpoint name (often contains device name)
                             if self.device_name.lower() in mountpoint.lower():
+                                print(f"[Storage Detection] ✓ Found device via mountpoint match: {mountpoint} (label: {label or 'none'})")
                                 return mountpoint
+                
+                if mounted_drives:
+                    print(f"[Storage Detection] Found {len(mounted_drives)} mounted disk drive(s), but none match '{self.device_name}':")
+                    for drive in mounted_drives:
+                        print(f"  - {drive['name']}: {drive['mountpoint']} (label: {drive['label'] or 'none'})")
+                else:
+                    print("[Storage Detection] No mounted disk drives found via lsblk")
         except Exception as e:
-            print(f"Error using lsblk: {e}")
+            print(f"[Storage Detection] Error using lsblk: {e}")
         
         # Method 2: Check /proc/mounts for USB/removable disk drives
         try:
+            print("[Storage Detection] Method 2: Checking /proc/mounts for removable drives...")
+            removable_mounts = []
             with open('/proc/mounts', 'r') as f:
                 for line in f:
                     parts = line.split()
@@ -122,36 +138,60 @@ class StorageDetector:
                         if '/dev/sd' in device or '/dev/mmcblk' in device:
                             # Check if mountpoint is in typical removable storage locations
                             if '/media' in mountpoint or '/mnt' in mountpoint or '/run/media' in mountpoint:
+                                removable_mounts.append({'device': device, 'mountpoint': mountpoint})
                                 # Check label
                                 label = self._get_device_label(device)
                                 if label and self.device_name.lower() in label.lower():
+                                    print(f"[Storage Detection] ✓ Found device via /proc/mounts label match: {mountpoint} (label: {label})")
                                     return mountpoint
                                 
                                 # Check mountpoint name
                                 if self.device_name.lower() in mountpoint.lower():
+                                    label_str = label if label else 'none'
+                                    print(f"[Storage Detection] ✓ Found device via /proc/mounts mountpoint match: {mountpoint} (label: {label_str})")
                                     return mountpoint
+            
+            if removable_mounts:
+                print(f"[Storage Detection] Found {len(removable_mounts)} removable mount(s) in /proc/mounts, but none match '{self.device_name}':")
+                for mount in removable_mounts:
+                    label = self._get_device_label(mount['device'])
+                    print(f"  - {mount['device']}: {mount['mountpoint']} (label: {label or 'none'})")
         except Exception as e:
-            print(f"Error reading /proc/mounts: {e}")
+            print(f"[Storage Detection] Error reading /proc/mounts: {e}")
         
         # Method 3: Check /media, /mnt, and /run/media directories for mounted drives
+        print("[Storage Detection] Method 3: Checking standard mount directories...")
         for base_dir in ['/run/media', '/media', '/mnt']:
             if os.path.exists(base_dir):
                 try:
-                    for item in os.listdir(base_dir):
-                        item_path = os.path.join(base_dir, item)
-                        if os.path.isdir(item_path):
-                            # Verify it's actually a mount point (disk drive)
-                            if self._is_mount_point(item_path):
-                                # Check if name matches
-                                if self.device_name.lower() in item.lower():
-                                    return item_path
+                    items = os.listdir(base_dir)
+                    if items:
+                        print(f"[Storage Detection] Checking {base_dir} ({len(items)} items)")
+                        for item in items:
+                            item_path = os.path.join(base_dir, item)
+                            if os.path.isdir(item_path):
+                                # Verify it's actually a mount point (disk drive)
+                                if self._is_mount_point(item_path):
+                                    print(f"  - Found mount point: {item_path}")
+                                    # Check if name matches
+                                    if self.device_name.lower() in item.lower():
+                                        print(f"[Storage Detection] ✓ Found device via directory scan: {item_path}")
+                                        return item_path
+                                    else:
+                                        print(f"    (Name '{item}' doesn't match '{self.device_name}')")
+                    else:
+                        print(f"[Storage Detection] {base_dir} exists but is empty")
                 except PermissionError:
+                    print(f"[Storage Detection] Permission denied accessing {base_dir}")
                     continue
                 except Exception as e:
-                    print(f"Error checking {base_dir}: {e}")
+                    print(f"[Storage Detection] Error checking {base_dir}: {e}")
+            else:
+                print(f"[Storage Detection] {base_dir} does not exist")
         
         # Method 4: Use df to find all removable disk drives
         try:
+            print("[Storage Detection] Method 4: Checking df output for removable drives...")
             result = subprocess.run(
                 ['df', '-h', '-T'],
                 capture_output=True,
@@ -161,6 +201,7 @@ class StorageDetector:
             
             if result.returncode == 0:
                 lines = result.stdout.strip().split('\n')[1:]  # Skip header
+                removable_dfs = []
                 for line in lines:
                     parts = line.split()
                     if len(parts) >= 7:
@@ -170,13 +211,21 @@ class StorageDetector:
                         
                         # Check if it's a disk drive in removable storage locations
                         if ('/media' in mountpoint or '/mnt' in mountpoint or '/run/media' in mountpoint):
-                            if os.path.isdir(mountpoint) and os.path.isdir(mountpoint):
+                            if os.path.isdir(mountpoint):
+                                removable_dfs.append({'device': device, 'mountpoint': mountpoint})
                                 # Check if name matches in mountpoint path
                                 if self.device_name.lower() in mountpoint.lower():
+                                    print(f"[Storage Detection] ✓ Found device via df: {mountpoint}")
                                     return mountpoint
+                
+                if removable_dfs:
+                    print(f"[Storage Detection] Found {len(removable_dfs)} removable drive(s) via df, but none match '{self.device_name}':")
+                    for df_mount in removable_dfs:
+                        print(f"  - {df_mount['device']}: {df_mount['mountpoint']}")
         except Exception as e:
-            print(f"Error using df: {e}")
+            print(f"[Storage Detection] Error using df: {e}")
         
+        print(f"[Storage Detection] ✗ Device matching '{self.device_name}' not found after checking all methods")
         return None
     
     def _get_device_label(self, device: str) -> Optional[str]:
@@ -270,13 +319,27 @@ class StorageDetector:
             Mount point path or None if timeout
         """
         start_time = time.time()
+        check_count = 0
+        
+        print(f"[Storage Detection] Waiting up to {timeout} seconds for device to mount (checking every {check_interval}s)...")
         
         while time.time() - start_time < timeout:
+            check_count += 1
+            elapsed = time.time() - start_time
+            print(f"\n[Storage Detection] Check #{check_count} (elapsed: {elapsed:.1f}s)")
+            
             mount_point = self.find_device_mount_point()
             if mount_point:
+                print(f"[Storage Detection] ✓ Device found after {elapsed:.1f} seconds")
                 return mount_point
+            
+            remaining = timeout - elapsed
+            if remaining > check_interval:
+                print(f"[Storage Detection] Device not found, waiting {check_interval}s ({(remaining - check_interval):.1f}s remaining)...")
             time.sleep(check_interval)
         
+        elapsed = time.time() - start_time
+        print(f"\n[Storage Detection] ✗ Timeout after {elapsed:.1f} seconds - device not mounted")
         return None
     
     def is_device_mounted(self) -> bool:

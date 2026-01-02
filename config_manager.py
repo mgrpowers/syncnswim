@@ -38,7 +38,7 @@ class ConfigManager:
     def _default_config(self) -> Dict:
         """Return default configuration."""
         return {
-            "shokz_device_name": "Shokz",
+            "shokz_device_name": "SWIM",
             "download_directory": "./downloads",
             "device_music_directory": "MUSIC",
             "storage_wait_timeout": 30,

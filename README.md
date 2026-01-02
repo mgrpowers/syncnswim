@@ -26,13 +26,32 @@ SyncNSwim monitors for when your Shokz OpenSwim headphones are mounted as a stor
 
 1. **Clone or download this repository**
 
-2. **Install Python dependencies:**
+2. **Create a virtual environment (recommended):**
 
    ```bash
-   pip3 install -r requirements.txt
+   python3 -m venv venv
+   source venv/bin/activate
    ```
 
-3. **Connect your Shokz OpenSwim headphones:**
+   Note: If `python3 -m venv` fails, install python3-venv first:
+
+   ```bash
+   sudo apt-get install python3-venv
+   ```
+
+3. **Install Python dependencies:**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+   Note: If you prefer not to use a virtual environment, you can use system packages or install with `--break-system-packages` (not recommended):
+
+   ```bash
+   pip3 install -r requirements.txt --break-system-packages
+   ```
+
+4. **Connect your Shokz OpenSwim headphones:**
    - Connect the headphones via USB cable to your Raspberry Pi
    - The headphones should appear as a disk drive when connected
    - The device should automatically mount (typically in `/media`, `/mnt`, or `/run/media`)
@@ -45,7 +64,7 @@ The app comes with "This Week in Tech" pre-configured. The configuration is stor
 
 ```json
 {
-  "shokz_device_name": "Shokz",
+  "shokz_device_name": "SWIM",
   "download_directory": "./downloads",
   "device_music_directory": "MUSIC",
   "storage_wait_timeout": 30,
@@ -61,7 +80,7 @@ The app comes with "This Week in Tech" pre-configured. The configuration is stor
 
 Configuration options:
 
-- `shokz_device_name`: Name or partial name to match your device (default: "Shokz")
+- `shokz_device_name`: Name or partial name to match your device (default: "SWIM", matches "SWIM PRO" mount point)
 - `download_directory`: Local directory for temporary downloads (default: "./downloads")
 - `device_music_directory`: Directory name on device where music is stored (default: "MUSIC")
 - `storage_wait_timeout`: Seconds to wait for storage to mount (default: 30, not used in current monitoring mode)
@@ -111,6 +130,15 @@ You can also edit `config.json` directly (see configuration section above for de
 ### Running the Application
 
 Start the monitoring service:
+
+If using a virtual environment (recommended):
+
+```bash
+source venv/bin/activate
+python main.py
+```
+
+Or if installed system-wide:
 
 ```bash
 python3 main.py

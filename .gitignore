@@ -9,6 +9,8 @@ venv/
 ENV/
 .venv
 
+# Virtual environment (keep venv/ in .gitignore but document it)
+
 # Downloads
 downloads/
 *.mp3

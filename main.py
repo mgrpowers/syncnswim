@@ -36,8 +36,10 @@ class SyncNSwimApp:
         mount_point = self.storage_detector.find_device_mount_point()
         
         if not mount_point:
-            print("✗ Storage device not found")
-            print("  Make sure the headphones are connected and mounted as a disk drive")
+            print("\n✗ Storage device not found")
+            print(f"  Looking for device matching: '{self.config_manager.get_shokz_device_name()}'")
+            print("  Make sure the headphones are connected via USB and mounted as a disk drive")
+            print("  Run 'python3 storage_detector.py' to see all mounted devices for debugging")
             return
         
         print(f"✓ Storage device found at: {mount_point}\n")
@@ -135,19 +137,26 @@ class SyncNSwimApp:
         # Start monitoring
         try:
             check_interval = 5.0
+            check_count = 0
             while True:
+                check_count += 1
                 current_state = self.storage_detector.is_device_mounted()
                 
                 if current_state != self.last_storage_state:
                     if current_state:
                         # Device just mounted
+                        print(f"\n[Monitor] Storage device mounted (check #{check_count})")
                         self.sync_episodes()
                     else:
                         # Device just unmounted
-                        print(f"\nStorage device unmounted.\n")
+                        print(f"\n[Monitor] Storage device unmounted (check #{check_count})\n")
                         self.file_transfer = None
                     
                     self.last_storage_state = current_state
+                elif check_count % 12 == 0:  # Every ~60 seconds (12 checks * 5s)
+                    # Periodic status update when device is not mounted
+                    if not current_state:
+                        print(f"[Monitor] Still waiting for device... (check #{check_count}, ~{check_count * check_interval / 60:.0f} min elapsed)")
                 
                 time.sleep(check_interval)
         except KeyboardInterrupt:
