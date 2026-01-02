@@ -30,16 +30,53 @@ class FileTransfer:
         Returns:
             True if directory exists or was created successfully
         """
-        # Check if mount point is writable
-        if not self._is_mount_writable():
-            print(f"Device mount point is read-only: {self.device_mount_point}")
-            print("  Try unmounting and remounting with write permissions, or check device settings")
-            return False
+        # Check mount status
+        mount_info = self._get_mount_info()
+        if mount_info:
+            if mount_info.get('read_only'):
+                print(f"Device is mounted READ-ONLY: {self.device_mount_point}")
+                print(f"  Device: {mount_info.get('device', 'unknown')}")
+                print(f"  Filesystem: {mount_info.get('fstype', 'unknown')}")
+                print("  The device cannot be written to in its current state")
+                print("  Check device documentation or try unmounting and remounting")
+                return False
         
         # Check if we have write permissions
-        if not os.access(self.device_mount_point, os.W_OK):
-            print(f"No write permission on device mount point: {self.device_mount_point}")
-            print("  You may need to run with sudo, or check filesystem permissions")
+        # Try a test write first (more reliable than os.access for mounted filesystems)
+        can_write = False
+        test_file = os.path.join(self.device_mount_point, '.syncnswim_write_test')
+        try:
+            with open(test_file, 'w') as f:
+                f.write('test')
+            os.remove(test_file)
+            can_write = True
+        except (PermissionError, OSError) as e:
+            can_write = False
+            print(f"Cannot write to device mount point: {self.device_mount_point}")
+            print(f"  Test write failed: {e}")
+            print(f"  Current user: {os.getenv('USER', 'unknown')}")
+            print(f"  Current UID: {os.getuid()}")
+            
+            # Check mount info for owner info
+            if mount_info:
+                print(f"  Device: {mount_info.get('device', 'unknown')}")
+                print(f"  Filesystem: {mount_info.get('fstype', 'unknown')}")
+                print(f"  Mount options: {mount_info.get('options', 'unknown')}")
+                # Check if uid/gid are set in mount options
+                options = mount_info.get('options', '')
+                if 'uid=' in options or 'gid=' in options:
+                    print(f"  Note: Mount has uid/gid specified in options")
+            
+            # Check if running as root would help
+            if os.getuid() != 0:
+                print("\n  Options:")
+                print("    1. Check if mount point directory permissions allow write")
+                print("    2. Verify with: ls -ld '/media/raspberry/SWIM PRO'")
+                print("    3. Try: sudo chmod 755 '/media/raspberry/SWIM PRO'")
+                print("    4. Check device documentation for write access requirements")
+            return False
+        
+        if not can_write:
             return False
         
         try:
@@ -55,14 +92,18 @@ class FileTransfer:
         except PermissionError:
             print(f"Permission denied creating directory: {self.device_music_path}")
             print(f"  Mount point: {self.device_mount_point}")
-            print("  You may need to run with sudo, or check device/filesystem permissions")
+            mount_info = self._get_mount_info()
+            if mount_info and mount_info.get('read_only'):
+                print("  Device is mounted read-only")
+            else:
+                print("  You may need to run with sudo, or check device/filesystem permissions")
             return False
         except Exception as e:
             print(f"Error creating music directory: {e}")
             return False
     
-    def _is_mount_writable(self) -> bool:
-        """Check if the mount point is writable (not read-only)."""
+    def _get_mount_info(self) -> Optional[dict]:
+        """Get mount information for the device."""
         try:
             # Check mount options from /proc/mounts
             with open('/proc/mounts', 'r') as f:
@@ -71,6 +112,7 @@ class FileTransfer:
                     if len(parts) >= 4:
                         device = parts[0]
                         mountpoint = parts[1]
+                        fstype = parts[2]
                         options = parts[3]
                         
                         # Normalize mountpoint (handle spaces/encoding)
@@ -78,27 +120,26 @@ class FileTransfer:
                         normalized_our_mount = self.device_mount_point.replace('\\040', ' ').replace('\\x20', ' ')
                         
                         if normalized_mountpoint == normalized_our_mount or mountpoint == self.device_mount_point:
-                            # Check if 'ro' (read-only) is in the options
-                            if 'ro' in options.split(','):
-                                return False
-                            return True  # If not explicitly ro, assume writable
-        except Exception as e:
-            print(f"Warning: Could not check mount options: {e}")
-            # Assume writable if we can't check
-            return True
-        
-        # If not found in /proc/mounts, try to write a test file
-        try:
-            test_file = os.path.join(self.device_mount_point, '.syncnswim_write_test')
-            try:
-                with open(test_file, 'w') as f:
-                    f.write('test')
-                os.remove(test_file)
-                return True
-            except (PermissionError, OSError):
-                return False
+                            return {
+                                'device': device,
+                                'mountpoint': mountpoint,
+                                'fstype': fstype,
+                                'options': options,
+                                'read_only': 'ro' in options.split(',')
+                            }
         except Exception:
-            return True  # Assume writable if test fails for other reasons
+            pass
+        
+        return None
+    
+    def _is_mount_writable(self) -> bool:
+        """Check if the mount point is writable (not read-only)."""
+        mount_info = self._get_mount_info()
+        if mount_info:
+            return not mount_info.get('read_only', False)
+        
+        # If not found in /proc/mounts, assume writable
+        return True
     
     def get_device_free_space(self) -> Optional[int]:
         """

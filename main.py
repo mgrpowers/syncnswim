@@ -50,6 +50,16 @@ class SyncNSwimApp:
             music_directory=self.config_manager.get_device_music_directory()
         )
         
+        # Check mount status and permissions
+        mount_info = self.file_transfer._get_mount_info()
+        if mount_info:
+            print(f"Mount info: {mount_info.get('device', 'unknown')} ({mount_info.get('fstype', 'unknown')})")
+            if mount_info.get('read_only'):
+                print("  WARNING: Device is mounted READ-ONLY")
+            else:
+                print("  Mount status: Read-Write")
+        print()
+        
         # Check free space
         free_space = self.file_transfer.get_device_free_space()
         if free_space:
