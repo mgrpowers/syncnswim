@@ -1,0 +1,14 @@
+{
+  "shokz_device_name": "Shokz",
+  "download_directory": "./downloads",
+  "device_music_directory": "MUSIC",
+  "storage_wait_timeout": 30,
+  "podcasts": [
+    {
+      "name": "This Week in Tech",
+      "rss_url": "https://feeds.twit.tv/twit.xml",
+      "enabled": true
+    }
+  ]
+}
+
