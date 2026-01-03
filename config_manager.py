@@ -40,8 +40,11 @@ class ConfigManager:
         return {
             "shokz_device_name": "SWIM",
             "download_directory": "./downloads",
-            "device_music_directory": "MUSIC",
+            "device_music_directory": "",
             "storage_wait_timeout": 30,
+            "cleanup_days": 14,
+            "music_source_directory": "",
+            "random_songs_count": 20,
             "podcasts": [
                 {
                     "name": "This Week in Tech",
@@ -135,12 +138,24 @@ class ConfigManager:
         return self.config.get("download_directory", "./downloads")
     
     def get_device_music_directory(self) -> str:
-        """Get the music directory name on the device."""
-        return self.config.get("device_music_directory", "MUSIC")
+        """Get the music directory name on the device (empty string for root)."""
+        return self.config.get("device_music_directory", "")
     
     def get_storage_wait_timeout(self) -> int:
         """Get the timeout in seconds to wait for storage device."""
         return self.config.get("storage_wait_timeout", 30)
+    
+    def get_cleanup_days(self) -> int:
+        """Get the number of days after which files should be cleaned up."""
+        return self.config.get("cleanup_days", 14)
+    
+    def get_music_source_directory(self) -> str:
+        """Get the source directory for music files."""
+        return self.config.get("music_source_directory", "")
+    
+    def get_random_songs_count(self) -> int:
+        """Get the number of random songs to select."""
+        return self.config.get("random_songs_count", 20)
 
 
 if __name__ == "__main__":

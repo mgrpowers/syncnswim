@@ -10,6 +10,7 @@ from config_manager import ConfigManager
 from podcast_fetcher import PodcastFetcher
 from storage_detector import StorageDetector
 from file_transfer import FileTransfer
+from music_selector import MusicSelector
 
 
 class SyncNSwimApp:
@@ -65,7 +66,22 @@ class SyncNSwimApp:
         if free_space:
             print(f"Device free space: {free_space / (1024*1024):.2f} MB\n")
         
-        # Fetch and transfer latest episodes
+        # Sync music files if configured
+        music_source_dir = self.config_manager.get_music_source_directory()
+        if music_source_dir:
+            self.sync_random_music(mount_point)
+        
+        # Clean up old podcast files if configured (only if not using music sync)
+        if not music_source_dir:
+            cleanup_days = self.config_manager.get_cleanup_days()
+            print(f"Cleaning up files older than {cleanup_days} days...")
+            deleted_count = self.file_transfer.cleanup_old_files(days=cleanup_days)
+            if deleted_count > 0:
+                print(f"✓ Deleted {deleted_count} old file(s)\n")
+            else:
+                print("  No old files to delete\n")
+        
+        # Fetch and transfer latest podcast episodes
         self.fetch_and_transfer_episodes()
     
     def fetch_and_transfer_episodes(self):
@@ -118,6 +134,70 @@ class SyncNSwimApp:
             print(f"✓ Successfully transferred {len(downloaded_files)} episode(s) to device")
             print(f"{'='*60}\n")
     
+    def sync_random_music(self, mount_point: str):
+        """Sync random music files to the device."""
+        music_source_dir = self.config_manager.get_music_source_directory()
+        song_count = self.config_manager.get_random_songs_count()
+        
+        if not music_source_dir or not os.path.exists(music_source_dir):
+            print(f"Music source directory not configured or doesn't exist: {music_source_dir}")
+            return
+        
+        print(f"\n{'='*60}")
+        print(f"Syncing {song_count} random songs from: {music_source_dir}")
+        print(f"{'='*60}\n")
+        
+        # Initialize music selector
+        selector = MusicSelector(music_source_dir, song_count)
+        
+        # Load list of previously added files
+        previous_files = selector.load_selected_files_list(mount_point)
+        
+        # Delete previous batch
+        if previous_files:
+            print(f"Removing previous batch ({len(previous_files)} files)...")
+            deleted_count = 0
+            for filename in previous_files:
+                file_path = os.path.join(mount_point, filename)
+                try:
+                    if os.path.exists(file_path) and os.path.isfile(file_path):
+                        os.remove(file_path)
+                        deleted_count += 1
+                except Exception as e:
+                    print(f"  Error deleting {filename}: {e}")
+            
+            print(f"✓ Deleted {deleted_count} file(s) from previous batch\n")
+        
+        # Select random songs
+        selected_files = selector.select_random_songs()
+        
+        if not selected_files:
+            print("No music files to sync\n")
+            return
+        
+        # Copy selected files to device
+        print(f"Copying {len(selected_files)} files to device...\n")
+        copied_files = []
+        
+        for source_file in selected_files:
+            filename = os.path.basename(source_file)
+            try:
+                destination = self.file_transfer.copy_file(source_file, destination_filename=filename)
+                if destination:
+                    copied_files.append(source_file)
+                    print(f"✓ {filename}\n")
+                else:
+                    print(f"✗ Failed to copy: {filename}\n")
+            except Exception as e:
+                print(f"✗ Error copying {filename}: {e}\n")
+        
+        # Save list of copied files for next sync
+        if copied_files:
+            selector.save_selected_files_list(mount_point, copied_files)
+            print(f"\n{'='*60}")
+            print(f"✓ Successfully synced {len(copied_files)} song(s) to device")
+            print(f"{'='*60}\n")
+    
     def run(self):
         """Run the application."""
         print("="*60)
@@ -125,12 +205,23 @@ class SyncNSwimApp:
         print("="*60)
         print(f"\nMonitoring for storage device: {self.config_manager.get_shokz_device_name()}")
         print(f"Download directory: {self.config_manager.get_download_directory()}")
-        print(f"Device music directory: {self.config_manager.get_device_music_directory()}")
+        music_dir = self.config_manager.get_device_music_directory()
+        if music_dir:
+            print(f"Device music directory: {music_dir}")
+        else:
+            print(f"Device music directory: root (files stored at device root)")
+        
+        # Show music sync configuration
+        music_source = self.config_manager.get_music_source_directory()
+        if music_source:
+            song_count = self.config_manager.get_random_songs_count()
+            print(f"\nMusic sync: {song_count} random songs from: {music_source}")
         
         enabled_podcasts = self.config_manager.get_enabled_podcasts()
-        print(f"\nEnabled podcasts ({len(enabled_podcasts)}):")
-        for podcast in enabled_podcasts:
-            print(f"  • {podcast['name']}")
+        if enabled_podcasts:
+            print(f"\nEnabled podcasts ({len(enabled_podcasts)}):")
+            for podcast in enabled_podcasts:
+                print(f"  • {podcast['name']}")
         
         print("\nPress Ctrl+C to stop\n")
         

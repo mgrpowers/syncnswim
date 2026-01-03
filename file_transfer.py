@@ -4,6 +4,8 @@ File transfer module for copying MP3 files to Shokz OpenSwim headphones.
 
 import os
 import shutil
+import time
+from datetime import datetime, timedelta
 from typing import Optional, List
 from pathlib import Path
 
@@ -11,20 +13,24 @@ from pathlib import Path
 class FileTransfer:
     """Handles file transfer to Shokz OpenSwim storage."""
     
-    def __init__(self, device_mount_point: str, music_directory: str = "MUSIC"):
+    def __init__(self, device_mount_point: str, music_directory: str = ""):
         """
         Initialize file transfer.
         
         Args:
             device_mount_point: Mount point of the Shokz device
-            music_directory: Directory on device where music should be stored
+            music_directory: Directory on device where music should be stored (empty string for root)
         """
         # Normalize the mount point path (handle encoding from /proc/mounts)
         # /proc/mounts uses \040 or \x20 for spaces, convert to actual space
         normalized = device_mount_point.replace('\\x20', ' ').replace('\\040', ' ')
         self.device_mount_point = normalized
         self.music_directory = music_directory
-        self.device_music_path = os.path.join(self.device_mount_point, music_directory)
+        # If music_directory is empty, store files at root
+        if music_directory:
+            self.device_music_path = os.path.join(self.device_mount_point, music_directory)
+        else:
+            self.device_music_path = self.device_mount_point
     
     def ensure_music_directory(self) -> bool:
         """
@@ -299,6 +305,57 @@ class FileTransfer:
             print(f"Error listing device files: {e}")
         
         return files
+    
+    def cleanup_old_files(self, days: int = 14) -> int:
+        """
+        Remove files older than specified days from the device.
+        
+        Args:
+            days: Number of days - files older than this will be deleted (default: 14)
+            
+        Returns:
+            Number of files deleted
+        """
+        if not os.path.exists(self.device_music_path):
+            return 0
+        
+        deleted_count = 0
+        cutoff_time = time.time() - (days * 24 * 60 * 60)
+        
+        try:
+            files = os.listdir(self.device_music_path)
+            for filename in files:
+                file_path = os.path.join(self.device_music_path, filename)
+                
+                # Only process files (skip directories)
+                if not os.path.isfile(file_path):
+                    continue
+                
+                # Only process MP3 files
+                if not filename.lower().endswith('.mp3'):
+                    continue
+                
+                try:
+                    # Get file modification time
+                    mtime = os.path.getmtime(file_path)
+                    
+                    if mtime < cutoff_time:
+                        file_size = os.path.getsize(file_path)
+                        file_date = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d')
+                        print(f"  Deleting old file: {filename} (from {file_date}, {file_size / (1024*1024):.1f} MB)")
+                        os.remove(file_path)
+                        deleted_count += 1
+                except OSError as e:
+                    print(f"  Error deleting {filename}: {e}")
+                except Exception as e:
+                    print(f"  Error processing {filename}: {e}")
+        
+        except PermissionError:
+            print("Permission denied accessing device files for cleanup")
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+        
+        return deleted_count
 
 
 if __name__ == "__main__":

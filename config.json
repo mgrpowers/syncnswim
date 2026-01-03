@@ -1,8 +1,11 @@
 {
   "shokz_device_name": "SWIM",
   "download_directory": "./downloads",
-  "device_music_directory": "MUSIC",
+  "device_music_directory": "",
   "storage_wait_timeout": 30,
+  "cleanup_days": 14,
+  "music_source_directory": "",
+  "random_songs_count": 20,
   "podcasts": [
     {
       "name": "This Week in Tech",

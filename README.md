@@ -66,7 +66,7 @@ The app comes with "This Week in Tech" pre-configured. The configuration is stor
 {
   "shokz_device_name": "SWIM",
   "download_directory": "./downloads",
-  "device_music_directory": "MUSIC",
+  "device_music_directory": "",
   "storage_wait_timeout": 30,
   "podcasts": [
     {
@@ -82,8 +82,11 @@ Configuration options:
 
 - `shokz_device_name`: Name or partial name to match your device (default: "SWIM", matches "SWIM PRO" mount point)
 - `download_directory`: Local directory for temporary downloads (default: "./downloads")
-- `device_music_directory`: Directory name on device where music is stored (default: "MUSIC")
+- `device_music_directory`: Directory name on device where music is stored (default: "" for root, or specify a directory name)
 - `storage_wait_timeout`: Seconds to wait for storage to mount (default: 30, not used in current monitoring mode)
+- `cleanup_days`: Number of days after which old podcast files are deleted (default: 14, set to 0 to disable cleanup, only used if music_source_directory is not set)
+- `music_source_directory`: Directory containing music files to randomly sync (default: "", set to enable random music sync)
+- `random_songs_count`: Number of random songs to select and sync (default: 20)
 - `podcasts`: Array of podcast configurations
 
 ### Managing Podcasts via CLI
@@ -198,10 +201,11 @@ To run SyncNSwim automatically on boot, you can create a systemd service:
 
 1. **Storage Monitoring**: Continuously monitors for when the Shokz OpenSwim storage device is mounted as a disk drive (typically in `/media`, `/mnt`, or `/run/media`)
 2. **Storage Detection**: Detects the mount point by looking for devices matching the configured device name
-3. **RSS Parsing**: When storage is detected, parses RSS feeds to find the latest episode for each enabled podcast
-4. **Download**: Downloads MP3 files to local directory first (organized by podcast name)
-5. **Transfer**: Copies MP3 files to the headphone's storage device (in the MUSIC directory)
-6. **Smart Updates**: Only downloads/transfers new episodes (checks if file already exists on device)
+3. **Cleanup**: Removes old podcast files (older than configured days, default 14 days)
+4. **RSS Parsing**: When storage is detected, parses RSS feeds to find the latest episode for each enabled podcast
+5. **Download**: Downloads MP3 files to local directory first (organized by podcast name)
+6. **Transfer**: Copies MP3 files to the headphone's storage device (at root or configured directory)
+7. **Smart Updates**: Only downloads/transfers new episodes (checks if file already exists on device)
 
 ## Default Podcast
 
