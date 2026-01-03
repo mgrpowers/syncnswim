@@ -4,7 +4,7 @@
   "device_music_directory": "",
   "storage_wait_timeout": 30,
   "cleanup_days": 14,
-  "music_source_directory": "",
+  "music_source_directory": "/media/raspberry/Media/Music",
   "random_songs_count": 20,
   "podcasts": [
     {
